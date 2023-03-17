@@ -35,14 +35,14 @@ tag-patch:
 
 release:
 	git push --tags
-	GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/XXX@$(shell svu current)
+	GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/cliopatra@$(shell svu current)
 
 bump-glazed:
 	go get github.com/go-go-golems/glazed@latest
 	go get github.com/go-go-golems/clay@latest
 	go mod tidy
 
-XXX_BINARY=$(shell which XXX)
+cliopatra_BINARY=$(shell which cliopatra)
 install:
-	go build -o ./dist/XXX ./cmd/XXX && \
-		cp ./dist/XXX $(SQLETON_BINARY)
+	go build -o ./dist/cliopatra ./cmd/cliopatra && \
+		cp ./dist/cliopatra $(cliopatra_BINARY)

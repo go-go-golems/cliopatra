@@ -1,0 +1,4 @@
+github.com/go-go-golems/clay v0.0.9 h1:gsBEXOht8DJJp00CpI68dZAXN5JnLnTLfPwp/0DCqSk=
+github.com/go-go-golems/clay v0.0.9/go.mod h1:TU/SDhphVXvn5xZ0O3m8yPG8l3qZdyTRFQf9f4Z0JPg=
+github.com/go-go-golems/glazed v0.2.45 h1:twqGW6MPwBGjRE+1Rk1md+3znPfBFVP7vMs4ELO0XfY=
+github.com/go-go-golems/glazed v0.2.45/go.mod h1:84rsOvCCTBOOFXw0PtEiL/Zd02qny+qrpe19LtTErzw=
