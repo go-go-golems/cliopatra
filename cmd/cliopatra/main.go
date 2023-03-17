@@ -21,6 +21,9 @@ func main() {
 	runCmd := cmds2.NewRunCommand()
 	rootCmd.AddCommand(runCmd)
 
+	renderCmd := cmds2.NewRenderCommand()
+	rootCmd.AddCommand(renderCmd)
+
 	_ = helpSystem
 
 	err = rootCmd.Execute()
