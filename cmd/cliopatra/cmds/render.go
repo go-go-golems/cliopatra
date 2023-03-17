@@ -2,229 +2,164 @@ package cmds
 
 import (
 	"context"
-	"github.com/bmatcuk/doublestar/v4"
-	"github.com/fsnotify/fsnotify"
+	"github.com/go-go-golems/clay/pkg/watcher"
+	"github.com/go-go-golems/glazed/pkg/cli"
+	"github.com/go-go-golems/glazed/pkg/cmds"
+	"github.com/go-go-golems/glazed/pkg/cmds/layers"
+	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
-type Watcher struct {
-	Paths    []string
-	Mask     string
-	Callback func(path string)
-}
-
-func (w *Watcher) Run(ctx context.Context) error {
-	// Create a new watcher
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return err
-	}
-	defer watcher.Close()
-
-	// Add each path to the watcher
-	for _, path := range w.Paths {
-		log.Debug().Str("path", path).Msg("Adding recursive path to watcher")
-		err = addRecursive(watcher, path)
-		if err != nil {
-			return err
-		}
-	}
-
-	log.Info().Strs("paths", w.Paths).Str("mask", w.Mask).Msg("Watching paths")
-
-	// Listen for events until the context is cancelled
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return nil
-			}
-			log.Debug().Str("event", event.String()).Msg("Received fsnotify event")
-
-			// if it is a deletion, remove the directory from the watcher
-			if event.Op&fsnotify.Remove == fsnotify.Remove {
-				log.Debug().Str("path", event.Name).Msg("Removing directory from watcher")
-				err = removePathsWithPrefix(watcher, event.Name)
-				if err != nil {
-					return err
-				}
-				continue
-			}
-
-			// if a new directory is created, add it to the watcher
-			if event.Op&fsnotify.Create == fsnotify.Create {
-				info, err := os.Stat(event.Name)
-				if err != nil {
-					return err
-				}
-				if info.IsDir() {
-					log.Debug().Str("path", event.Name).Msg("Adding new directory to watcher")
-					err = addRecursive(watcher, event.Name)
-					if err != nil {
-						return err
-					}
-					continue
-				}
-			}
-
-			doesMatch, err := doublestar.Match(w.Mask, event.Name)
-			if err != nil {
-				return err
-			}
-
-			if !doesMatch {
-				log.Debug().Str("path", event.Name).Str("mask", w.Mask).Msg("Skipping event because it does not match the mask")
-				continue
-			}
-			if event.Op&fsnotify.Write != fsnotify.Write && event.Op&fsnotify.Create != fsnotify.Create {
-				log.Debug().Str("path", event.Name).Msg("Skipping event because it is not a write or create event")
-				continue
-			}
-			log.Info().Str("path", event.Name).Msg("File modified")
-			if w.Callback != nil {
-				w.Callback(event.Name)
-			}
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return nil
-			}
-			log.Error().Err(err).Msg("Received fsnotify error")
-		}
-	}
-}
-
-// removePathsWithPrefix removes `name` and all subdirectories from the watcher
-func removePathsWithPrefix(watcher *fsnotify.Watcher, name string) error {
-	// we do the "recursion" by checking the watchlist of the watcher for all watched directories
-	// that has name as prefix
-	watchlist := watcher.WatchList()
-	for _, path := range watchlist {
-		if strings.HasPrefix(path, name) {
-			log.Debug().Str("path", path).Msg("Removing path from watcher")
-			err := watcher.Remove(path)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-// Recursively add a path to the watcher
-func addRecursive(watcher *fsnotify.Watcher, path string) error {
-	if !strings.HasSuffix(path, string(os.PathSeparator)) {
-		path += string(os.PathSeparator)
-	}
-
-	addPath := strings.TrimSuffix(path, string(os.PathSeparator))
-
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-
-	// check if we have permissions to watch
-	if info.Mode()&os.ModeSymlink != 0 {
-		log.Debug().Str("path", addPath).Msg("Skipping symlink")
-		return nil
-	}
-
-	// open and then close to check if we can actually read from the file
-	f, err := os.Open(addPath)
-	if err != nil {
-		log.Warn().Str("path", addPath).Msg("Skipping path because we cannot read it")
-		return nil
-	}
-	_ = f.Close()
-
-	log.Debug().Str("path", addPath).Msg("Adding path to watcher")
-	err = watcher.Add(addPath)
-	if err != nil {
-		return err
-	}
-
-	if info.IsDir() {
-		log.Debug().Str("path", path).Msg("Walking path to add subpaths to watcher")
-		err = filepath.Walk(path, func(subpath string, info os.FileInfo, err error) error {
-			if err != nil {
-				log.Warn().Err(err).Str("path", subpath).Msg("Error walking path")
-				return nil
-			}
-			if subpath == path {
-				return nil
-			}
-			log.Trace().Str("path", subpath).Msg("Testing subpath to watcher")
-			if info.IsDir() {
-				log.Debug().Str("path", subpath).Msg("Adding subpath to watcher")
-				err = addRecursive(watcher, subpath)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Match a path against a glob mask
-func match(mask, path string) bool {
-	if mask == "" {
-		return true
-	}
-	match, err := filepath.Match(mask, path)
-	if err != nil {
-		return false
-	}
-	return match
-}
-
 func runWatcher(args []string) {
-	w := &Watcher{
-		Paths: args,
-		Mask:  "**/*.txt",
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+}
 
-	eg := errgroup.Group{}
-
-	// Add the watcher to the errgroup
-	eg.Go(func() error {
-		return w.Run(ctx)
-	})
-
-	// Wait for the watcher to finish or the context to be cancelled
-	// Wait for the errgroup to complete
-	err := eg.Wait()
-	// check that the error wasn't a cancel
-	if err != nil && err != context.Canceled {
-		log.Error().Err(err).Msg("Error running watcher")
-	}
-	cobra.CheckErr(err)
-
+type renderCommandSettings struct {
+	Repository      []string `glazed.parameter:"repository"`
+	OutputDirectory string   `glazed.parameter:"output-directory"`
+	OutputFile      string   `glazed.parameter:"output-file"`
+	Watch           bool     `glazed.parameter:"watch"`
+	Glob            []string `glazed.parameter:"glob"`
+	WithGoTemplate  bool     `glazed.parameter:"with-go-template"`
+	WithYamlMarkers bool     `glazed.parameter:"with-yaml-markers"`
 }
 
 func NewRenderCommand() *cobra.Command {
-	renderCommand := &cobra.Command{
-		Use:   "render",
-		Short: "Render a go template file by expanding cliopatra calls",
-		Args:  cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			runWatcher(args)
-		},
+	renderLayer, err := layers.NewParameterLayer("render", "Cliopatra rendering options",
+		layers.WithFlags(
+			parameters.NewParameterDefinition(
+				"repository",
+				parameters.ParameterTypeStringList,
+				parameters.WithHelp("List of repositories to use"),
+			),
+			parameters.NewParameterDefinition(
+				"output-directory",
+				parameters.ParameterTypeString,
+				parameters.WithHelp("Output directory"),
+			),
+			parameters.NewParameterDefinition(
+				"output-file",
+				parameters.ParameterTypeString,
+				parameters.WithHelp("Output file"),
+			),
+			parameters.NewParameterDefinition(
+				"watch",
+				parameters.ParameterTypeBool,
+				parameters.WithHelp("Watch for changes"),
+				parameters.WithDefault(false),
+			),
+			parameters.NewParameterDefinition(
+				"glob",
+				parameters.ParameterTypeStringList,
+				parameters.WithHelp("List of doublestar file glob"),
+				parameters.WithDefault([]string{"**.tmpl.md"}),
+			),
+			parameters.NewParameterDefinition(
+				"with-go-template",
+				parameters.ParameterTypeBool,
+				parameters.WithHelp("Use go template"),
+				parameters.WithDefault(true),
+			),
+			parameters.NewParameterDefinition(
+				"with-yaml-markers",
+				parameters.ParameterTypeBool,
+				parameters.WithHelp("Recognize yaml markers"),
+				parameters.WithDefault(true),
+			),
+		),
+	)
+	cobra.CheckErr(err)
+
+	description := cmds.NewCommandDescription("render",
+		cmds.WithLong("Render a go template file by expanding cliopatra calls"),
+		cmds.WithLayers(renderLayer),
+		cmds.WithArguments(
+			parameters.NewParameterDefinition(
+				"files",
+				parameters.ParameterTypeStringList,
+				parameters.WithHelp("List of files or directories to render"),
+				parameters.WithRequired(true),
+			),
+		),
+	)
+
+	cobraParser, err := cli.NewCobraParserFromCommandDescription(description)
+	cobra.CheckErr(err)
+	renderCommand := cobraParser.Cmd
+
+	renderCommand.Run = func(cmd *cobra.Command, args []string) {
+		parsedLayers, ps, err := cobraParser.Parse(args)
+		cobra.CheckErr(err)
+
+		renderLayer, ok := parsedLayers["render"]
+		if !ok {
+			cobra.CheckErr(errors.New("render layer not found"))
+		}
+		settings := &renderCommandSettings{}
+		err = parameters.InitializeStructFromParameters(settings, renderLayer.Parameters)
+		cobra.CheckErr(err)
+
+		files, ok := ps["files"]
+		if !ok {
+			cobra.CheckErr(errors.New("files parameter not found"))
+		}
+		files_, ok := files.([]string)
+		if !ok {
+			cobra.CheckErr(errors.New("files parameter is not a string list"))
+		}
+
+		watcherOptions := []watcher.Option{
+			watcher.WithPaths(files_...),
+		}
+
+		if settings.Glob != nil && len(settings.Glob) > 0 {
+			watcherOptions = append(watcherOptions, watcher.WithMask(settings.Glob...))
+		}
+
+		if settings.Watch {
+			w := watcher.NewWatcher(func(path string) error {
+				log.Info().Str("path", path).Msg("File changed")
+				return nil
+			},
+				watcher.WithPaths(files_...),
+				watcher.WithMask("**/*.txt"))
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			eg := errgroup.Group{}
+			eg.Go(func() error {
+				return w.Run(ctx)
+			})
+
+			err := eg.Wait()
+			// check that the error wasn't a cancel
+			if err != nil && err != context.Canceled {
+				log.Error().Err(err).Msg("Error running watcher")
+			}
+			cobra.CheckErr(err)
+
+			runWatcher(files.([]string))
+			return
+		}
+
+		panic("not implemented")
 	}
+
+	// arguments: List of directories to render
+	// flags:
+	// - output directory
+	// - watch mode
+	// - file glob
+	// - use go template
+	// - recognize yaml markers
+	// - custom markers ??
+
+	// if we were to use a glaze.Command to do this, we'd probably want the type
+	// that emits structured data over a channel, since it would be used to display progress in a console
+	// or web UI, for example
 
 	return renderCommand
 }

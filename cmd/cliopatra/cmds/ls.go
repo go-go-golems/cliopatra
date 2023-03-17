@@ -55,7 +55,7 @@ func (l *LsProgramCommand) Run(
 	return nil
 }
 
-// Returns a new command that lists all the programs available in the repositories.
+// NewLsCommand returns a new command that lists all the programs available in the repositories.
 func NewLsCommand() *cobra.Command {
 	glazedParameterLayer, err := cli.NewGlazedParameterLayers()
 	cobra.CheckErr(err)
@@ -73,7 +73,7 @@ func NewLsCommand() *cobra.Command {
 			cmds.WithLayers(glazedParameterLayer),
 		),
 	}
-	cobraCommand, err := cli.BuildCobraCommand(cmd)
+	cobraCommand, err := cli.BuildCobraCommandFromGlazeCommand(cmd)
 	cobra.CheckErr(err)
 
 	return cobraCommand
