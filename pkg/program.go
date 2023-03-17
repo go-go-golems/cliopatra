@@ -2,12 +2,15 @@ package pkg
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 	"io"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -218,4 +221,22 @@ func LoadProgramsFromFS(f fs.FS, dir string) ([]*Program, error) {
 	}
 
 	return programs, nil
+}
+
+func LoadRepositories(repositories []string) map[string]*Program {
+	programs := map[string]*Program{}
+
+	for _, repository := range repositories {
+		_, err := os.Stat(repository)
+		programs_, err := LoadProgramsFromFS(os.DirFS(repository), ".")
+		cobra.CheckErr(err)
+
+		for _, program := range programs_ {
+			if _, ok := programs[program.Name]; ok {
+				cobra.CheckErr(fmt.Errorf("program %s already exists", program.Name))
+			}
+			programs[program.Name] = program
+		}
+	}
+	return programs
 }
