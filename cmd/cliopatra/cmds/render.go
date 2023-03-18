@@ -1,8 +1,12 @@
 package cmds
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"github.com/go-go-golems/clay/pkg/watcher"
+	"github.com/go-go-golems/cliopatra/pkg"
+	"github.com/go-go-golems/cliopatra/pkg/render"
 	"github.com/go-go-golems/glazed/pkg/cli"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
@@ -11,19 +15,24 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 func runWatcher(args []string) {
 }
 
 type renderCommandSettings struct {
-	Repository      []string `glazed.parameter:"repository"`
-	OutputDirectory string   `glazed.parameter:"output-directory"`
-	OutputFile      string   `glazed.parameter:"output-file"`
-	Watch           bool     `glazed.parameter:"watch"`
-	Glob            []string `glazed.parameter:"glob"`
-	WithGoTemplate  bool     `glazed.parameter:"with-go-template"`
-	WithYamlMarkers bool     `glazed.parameter:"with-yaml-markers"`
+	Repository           []string `glazed.parameter:"repository"`
+	OutputDirectory      string   `glazed.parameter:"output-directory"`
+	OutputFile           string   `glazed.parameter:"output-file"`
+	Watch                bool     `glazed.parameter:"watch"`
+	Glob                 []string `glazed.parameter:"glob"`
+	WithGoTemplate       bool     `glazed.parameter:"with-go-template"`
+	WithYamlMarkers      bool     `glazed.parameter:"with-yaml-markers"`
+	Delimiters           []string `glazed.parameter:"delimiters"`
+	AllowProgramCreation bool     `glazed.parameter:"allow-program-creation"`
 }
 
 func NewRenderCommand() *cobra.Command {
@@ -68,6 +77,18 @@ func NewRenderCommand() *cobra.Command {
 				parameters.WithHelp("Recognize yaml markers"),
 				parameters.WithDefault(true),
 			),
+			parameters.NewParameterDefinition(
+				"delimiters",
+				parameters.ParameterTypeStringList,
+				parameters.WithHelp("Left and right delimiter, separated by ,"),
+				parameters.WithDefault([]string{"{{", "}}"}),
+			),
+			parameters.NewParameterDefinition(
+				"allow-program-creation",
+				parameters.ParameterTypeBool,
+				parameters.WithHelp("Allow program creation"),
+				parameters.WithDefault(false),
+			),
 		),
 	)
 	cobra.CheckErr(err)
@@ -101,6 +122,9 @@ func NewRenderCommand() *cobra.Command {
 		err = parameters.InitializeStructFromParameters(settings, renderLayer.Parameters)
 		cobra.CheckErr(err)
 
+		repositories := ps["repository"]
+		programs := pkg.LoadRepositories(repositories.([]string))
+
 		files, ok := ps["files"]
 		if !ok {
 			cobra.CheckErr(errors.New("files parameter not found"))
@@ -118,13 +142,46 @@ func NewRenderCommand() *cobra.Command {
 			watcherOptions = append(watcherOptions, watcher.WithMask(settings.Glob...))
 		}
 
+		if settings.Delimiters != nil && len(settings.Delimiters) != 2 {
+			cobra.CheckErr(errors.New("delimiters parameter must have 2 values"))
+		}
+
 		if settings.Watch {
+			outputDirectory_, ok := ps["output-directory"]
+			if !ok {
+				cobra.CheckErr(errors.New("output-directory parameter not found"))
+			}
+
+			outputDirectory, ok := outputDirectory_.(string)
+			if !ok {
+				cobra.CheckErr(errors.New("output-directory parameter is not a string"))
+			}
+
+			if outputDirectory == "" {
+				cobra.CheckErr(errors.New("output-directory parameter is empty"))
+			}
+
 			w := watcher.NewWatcher(func(path string) error {
 				log.Info().Str("path", path).Msg("File changed")
+				// get the base path
+				basePath := path
+				for _, file := range files_ {
+					if strings.HasPrefix(path, file) {
+						basePath = file
+						break
+					}
+				}
+
+				outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
+				log.Info().
+					Str("path", path).
+					Str("basePath", basePath).
+					Str("outputPath", outputPath).
+					Msg("File changed")
+
 				return nil
 			},
-				watcher.WithPaths(files_...),
-				watcher.WithMask("**/*.txt"))
+				watcherOptions...)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -145,7 +202,33 @@ func NewRenderCommand() *cobra.Command {
 			return
 		}
 
-		panic("not implemented")
+		for _, file := range files_ {
+			f, err := os.Open(file)
+			cobra.CheckErr(err)
+			defer f.Close()
+
+			buf := bytes.NewBuffer(nil)
+
+			options := []render.Option{
+				render.WithPrograms(programs),
+				render.WithGoTemplate(settings.WithGoTemplate),
+				render.WithYamlMarkers(settings.WithYamlMarkers),
+				render.WithAllowProgramCreation(settings.AllowProgramCreation),
+			}
+
+			if settings.Delimiters != nil {
+				options = append(options, render.WithDelimiters(settings.Delimiters[0], settings.Delimiters[1]))
+			}
+
+			renderer := render.NewRenderer(options...)
+
+			err = renderer.Render(f, buf)
+			cobra.CheckErr(err)
+
+			// render file
+			s := buf.String()
+			fmt.Println(s)
+		}
 	}
 
 	// arguments: List of directories to render

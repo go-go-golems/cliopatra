@@ -37,6 +37,18 @@ type Parameter struct {
 // NOTE(manuel, 2023-03-16) It would be interesting to provide some more tests on the output (say, as shell scripts)
 // NOTE(manuel, 2023-03-16) What about measuring profiling regression
 
+func (p *Parameter) Clone() *Parameter {
+	return &Parameter{
+		Name:    p.Name,
+		Flag:    p.Flag,
+		Short:   p.Short,
+		Type:    p.Type,
+		Value:   p.Value,
+		Raw:     p.Raw,
+		NoValue: p.NoValue,
+	}
+}
+
 // Program describes a program to be executed by cliopatra.
 //
 // This can be used for golden tests by providing the
@@ -74,6 +86,80 @@ func NewProgramFromYAML(s io.Reader) (*Program, error) {
 		return nil, errors.Wrap(err, "could not decode program")
 	}
 	return &program, nil
+}
+
+func (p *Program) Clone() *Program {
+	clone := *p
+
+	clone.RawFlags = make([]string, len(p.RawFlags))
+	copy(clone.RawFlags, p.RawFlags)
+	clone.Flags = make([]*Parameter, len(p.Flags))
+	for i, f := range p.Flags {
+		clone.Flags[i] = f.Clone()
+	}
+	clone.Args = make([]*Parameter, len(p.Args))
+	for i, a := range p.Args {
+		clone.Args[i] = a.Clone()
+	}
+	clone.Env = make(map[string]string, len(p.Env))
+	for k, v := range p.Env {
+		clone.Env[k] = v
+	}
+
+	clone.ExpectedFiles = make(map[string]string, len(p.ExpectedFiles))
+	for k, v := range p.ExpectedFiles {
+		clone.ExpectedFiles[k] = v
+	}
+
+	return &clone
+}
+
+func (p *Program) SetFlagValue(name string, value interface{}) error {
+	for _, f := range p.Flags {
+		if f.Name == name {
+			f.Value = value
+			return nil
+		}
+	}
+
+	return fmt.Errorf("could not find flag %s", name)
+}
+
+func (p *Program) SetFlagRaw(name string, raw string) error {
+	for _, f := range p.Flags {
+		if f.Name == name {
+			f.Raw = raw
+			return nil
+		}
+	}
+
+	return fmt.Errorf("could not find flag %s", name)
+}
+
+func (p *Program) SetArgValue(name string, value interface{}) error {
+	for _, a := range p.Args {
+		if a.Name == name {
+			a.Value = value
+			return nil
+		}
+	}
+
+	return fmt.Errorf("could not find arg %s", name)
+}
+
+func (p *Program) SetArgRaw(name string, raw string) error {
+	for _, a := range p.Args {
+		if a.Name == name {
+			a.Raw = raw
+			return nil
+		}
+	}
+
+	return fmt.Errorf("could not find arg %s", name)
+}
+
+func (p *Program) AddRawFlag(raw ...string) {
+	p.RawFlags = append(p.RawFlags, raw...)
 }
 
 func (p *Program) RunIntoWriter(
