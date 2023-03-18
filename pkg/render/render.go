@@ -71,8 +71,42 @@ func (r *Renderer) clioLookupProgram(name string) (*pkg.Program, error) {
 	return program, nil
 }
 
+// CreateTemplate creates a standard glazed template (meaning, with all the sprig functions and co)
+// and registers a set of custom functions to run and modify cliopatra programs.
+//
+// These functions are
+//
+//   - `lookup`: looks up a program by name and returns it
+//
+//   - `program`: creates a new program. This will fail if program creation is not allowed.
+//
+//   - `path`: sets the path of a program
+//
+//   - `verbs`: sets the verbs of a program (a []string)
+//
+//   - `env`: sets the env of a program (a map[string]string)
+//
+//   - `add_raw_flag`: adds a raw flag to a program (a string)
+//
+//   - `raw_flags`: sets the raw flags of a program (a []string)
+//
+//   - `flag`: sets the value of a flag (a interface{})
+//
+//   - `flag_raw`: sets the raw value of a flag (a string)
+//
+//   - `arg`: sets the value of an arg (a interface{})
+//
+//   - `arg_raw`: sets the raw value of an arg (a string)
+//
+//   - `run`: runs a program and returns the output. It can take an arbitrary number of options.
+//
+//     If the program to be run is a string, it will be looked up in the programs passed to the
+//     renderer. If it is a *pkg.Program, it will be run as is.
+//
+//     If a string is passed as an option, it will be appended to the program as a raw flag.
+//
+//     `run` clones the program before modifying it with the passed options.
 func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
-	// create template
 	t := helpers.CreateTemplate(name).
 		Funcs(template.FuncMap{
 			"lookup": func(name string) (*pkg.Program, error) {
@@ -102,6 +136,12 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 			"stdin": func(s string) cliopatraTemplateOption {
 				return func(p *pkg.Program) error {
 					p.Stdin = s
+					return nil
+				}
+			},
+			"env": func(s map[string]string) cliopatraTemplateOption {
+				return func(p *pkg.Program) error {
+					p.Env = s
 					return nil
 				}
 			},
@@ -152,6 +192,8 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 				default:
 					return "", fmt.Errorf("invalid program type: %T", p)
 				}
+
+				p_ = p_.Clone()
 
 				options_ := []cliopatraTemplateOption{}
 
