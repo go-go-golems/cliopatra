@@ -1,9 +1,7 @@
 package cmds
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"github.com/go-go-golems/clay/pkg/watcher"
 	"github.com/go-go-golems/cliopatra/pkg"
 	"github.com/go-go-golems/cliopatra/pkg/render"
@@ -33,6 +31,7 @@ type renderCommandSettings struct {
 	WithYamlMarkers      bool     `glazed.parameter:"with-yaml-markers"`
 	Delimiters           []string `glazed.parameter:"delimiters"`
 	AllowProgramCreation bool     `glazed.parameter:"allow-program-creation"`
+	Quiet                bool     `glazed.parameter:"quiet"`
 }
 
 func NewRenderCommand() *cobra.Command {
@@ -47,6 +46,7 @@ func NewRenderCommand() *cobra.Command {
 				"output-directory",
 				parameters.ParameterTypeString,
 				parameters.WithHelp("Output directory"),
+				parameters.WithDefault("."),
 			),
 			parameters.NewParameterDefinition(
 				"output-file",
@@ -63,7 +63,7 @@ func NewRenderCommand() *cobra.Command {
 				"glob",
 				parameters.ParameterTypeStringList,
 				parameters.WithHelp("List of doublestar file glob"),
-				parameters.WithDefault([]string{"**.tmpl.md"}),
+				parameters.WithDefault([]string{"**/*.tmpl.md"}),
 			),
 			parameters.NewParameterDefinition(
 				"with-go-template",
@@ -87,6 +87,12 @@ func NewRenderCommand() *cobra.Command {
 				"allow-program-creation",
 				parameters.ParameterTypeBool,
 				parameters.WithHelp("Allow program creation"),
+				parameters.WithDefault(false),
+			),
+			parameters.NewParameterDefinition(
+				"quiet",
+				parameters.ParameterTypeBool,
+				parameters.WithHelp("Quiet mode"),
 				parameters.WithDefault(false),
 			),
 		),
@@ -146,6 +152,24 @@ func NewRenderCommand() *cobra.Command {
 			cobra.CheckErr(errors.New("delimiters parameter must have 2 values"))
 		}
 
+		// Create the renderer, now that we gathered all the options
+		options := []render.Option{
+			render.WithPrograms(programs),
+			render.WithGoTemplate(settings.WithGoTemplate),
+			render.WithYamlMarkers(settings.WithYamlMarkers),
+			render.WithAllowProgramCreation(settings.AllowProgramCreation),
+			render.WithVerbose(!settings.Quiet),
+		}
+		if settings.Glob != nil {
+			options = append(options, render.WithMasks(settings.Glob...))
+		}
+
+		if settings.Delimiters != nil {
+			options = append(options, render.WithDelimiters(settings.Delimiters[0], settings.Delimiters[1]))
+		}
+
+		renderer := render.NewRenderer(options...)
+
 		if settings.Watch {
 			outputDirectory_, ok := ps["output-directory"]
 			if !ok {
@@ -202,32 +226,42 @@ func NewRenderCommand() *cobra.Command {
 			return
 		}
 
+		if settings.OutputFile != "" && len(files_) > 1 {
+			cobra.CheckErr(errors.New("output-file parameter can only be used with a single file"))
+		}
+
+		if settings.OutputDirectory != "" && !strings.HasSuffix(settings.OutputDirectory, "/") {
+			settings.OutputDirectory += "/"
+		}
+
 		for _, file := range files_ {
-			f, err := os.Open(file)
-			cobra.CheckErr(err)
-			defer f.Close()
-
-			buf := bytes.NewBuffer(nil)
-
-			options := []render.Option{
-				render.WithPrograms(programs),
-				render.WithGoTemplate(settings.WithGoTemplate),
-				render.WithYamlMarkers(settings.WithYamlMarkers),
-				render.WithAllowProgramCreation(settings.AllowProgramCreation),
-			}
-
-			if settings.Delimiters != nil {
-				options = append(options, render.WithDelimiters(settings.Delimiters[0], settings.Delimiters[1]))
-			}
-
-			renderer := render.NewRenderer(options...)
-
-			err = renderer.Render(f, buf)
+			// check if file is a directory
+			fi, err := os.Stat(file)
 			cobra.CheckErr(err)
 
-			// render file
-			s := buf.String()
-			fmt.Println(s)
+			if fi.IsDir() {
+				if settings.OutputDirectory == "" {
+					cobra.CheckErr(errors.New("output-directory parameter is required when rendering a directory"))
+				}
+
+				err = renderer.RenderDirectory(file, settings.OutputDirectory)
+				cobra.CheckErr(err)
+
+			} else {
+				f, err := os.Open(file)
+				cobra.CheckErr(err)
+				defer f.Close()
+
+				var outputFile string
+				if settings.OutputFile != "" {
+					outputFile = settings.OutputFile
+				} else {
+					outputFile = filepath.Join(settings.OutputDirectory, filepath.Base(file))
+				}
+
+				err = renderer.RenderFile(file, outputFile)
+				cobra.CheckErr(err)
+			}
 		}
 	}
 

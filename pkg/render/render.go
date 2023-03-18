@@ -3,10 +3,13 @@ package render
 import (
 	"context"
 	"fmt"
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/go-go-golems/cliopatra/pkg"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/helpers"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 )
@@ -17,6 +20,8 @@ type Renderer struct {
 	withYamlMarkers      bool
 	delimiters           []string
 	allowProgramCreation bool
+	masks                []string
+	verbose              bool
 }
 
 type Option func(r *Renderer)
@@ -24,6 +29,12 @@ type Option func(r *Renderer)
 func WithPrograms(programs map[string]*pkg.Program) Option {
 	return func(r *Renderer) {
 		r.programs = programs
+	}
+}
+
+func WithVerbose(verbose bool) Option {
+	return func(r *Renderer) {
+		r.verbose = verbose
 	}
 }
 
@@ -51,8 +62,18 @@ func WithAllowProgramCreation(allowProgramCreation bool) Option {
 	}
 }
 
+func WithMasks(masks ...string) Option {
+	return func(r *Renderer) {
+		r.masks = masks
+	}
+}
+
 func NewRenderer(options ...Option) *Renderer {
-	r := &Renderer{}
+	r := &Renderer{
+		masks:   []string{},
+		verbose: false,
+	}
+
 	for _, option := range options {
 		option(r)
 	}
@@ -275,4 +296,99 @@ func (r *Renderer) Render(in io.Reader, out io.Writer) error {
 	}
 
 	return nil
+}
+
+func (r *Renderer) checkMasks(file string) (bool, error) {
+	if r.masks == nil || len(r.masks) == 0 {
+		return true, nil
+	}
+
+	for _, mask := range r.masks {
+		isMatch, err := doublestar.Match(mask, file)
+		if err != nil {
+			return false, err
+		}
+		if isMatch {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (r *Renderer) RenderFile(file string, outputFile string) error {
+	f, err := os.Open(file)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var w io.Writer
+
+	if file == "-" {
+		w = os.Stdout
+	} else {
+		// create the output file
+		out, err := os.Create(outputFile)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+		w = out
+	}
+
+	if r.verbose {
+		fmt.Printf("Rendering %s -> %s\n", file, outputFile)
+	}
+
+	err = r.Render(f, w)
+	return err
+}
+
+func (r *Renderer) recursiveRenderDirectory(currentDirectory string, baseDirectory string, outputDirectory string) error {
+	err := filepath.Walk(currentDirectory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if path == currentDirectory {
+			return nil
+		}
+
+		if info.IsDir() {
+			return r.recursiveRenderDirectory(path, baseDirectory, outputDirectory)
+		}
+
+		ok, err := r.checkMasks(path)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+
+		// create the output file
+		relPath, err := filepath.Rel(baseDirectory, path)
+		if err != nil {
+			return err
+		}
+
+		outputFile := filepath.Join(outputDirectory, relPath)
+		err = os.MkdirAll(filepath.Dir(outputFile), 0755)
+		if err != nil {
+			return err
+		}
+
+		return r.RenderFile(path, outputFile)
+	})
+
+	return err
+}
+
+func (r *Renderer) RenderDirectory(directory string, outputDirectory string) error {
+	if !strings.HasSuffix(directory, "/") {
+		directory += "/"
+	}
+
+	return r.recursiveRenderDirectory(directory, directory, outputDirectory)
 }
