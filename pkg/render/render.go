@@ -140,11 +140,36 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 			"lookup": func(name string) (*pkg.Program, error) {
 				return r.clioLookupProgram(name)
 			},
-			"program": func(name string, options ...cliopatraTemplateOption) (*pkg.Program, error) {
+			"program": func(name string, options ...interface{}) (*pkg.Program, error) {
 				if r.allowProgramCreation {
-					return &pkg.Program{
+					p := &pkg.Program{
 						Name: name,
-					}, nil
+					}
+
+					options_ := []cliopatraTemplateOption{}
+
+					for _, option := range options {
+						switch option := option.(type) {
+						case cliopatraTemplateOption:
+							options_ = append(options_, option)
+
+						case string:
+							// NOTE(manuel, 2023-03-18) What we really want here is to actually do proper flag parsing
+							options_ = append(options_, func(p *pkg.Program) error {
+								p.AddRawFlag(option)
+								return nil
+							})
+						}
+					}
+
+					for _, option := range options_ {
+						err := option(p)
+						if err != nil {
+							return nil, err
+						}
+					}
+
+					return p, nil
 				} else {
 					return nil, fmt.Errorf("program creation is not allowed")
 				}
