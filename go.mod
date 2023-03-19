@@ -3,10 +3,13 @@ module github.com/go-go-golems/cliopatra
 go 1.19
 
 require (
-	github.com/go-go-golems/clay v0.0.9
+	github.com/bmatcuk/doublestar/v4 v4.6.0
+	github.com/go-go-golems/clay v0.0.10
 	github.com/go-go-golems/glazed v0.2.46
 	github.com/pkg/errors v0.9.1
+	github.com/rs/zerolog v1.29.0
 	github.com/spf13/cobra v1.6.1
+	golang.org/x/sync v0.1.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -20,7 +23,6 @@ require (
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
 	github.com/aymanbagabas/go-osc52 v1.0.3 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
-	github.com/bmatcuk/doublestar/v4 v4.6.0 // indirect
 	github.com/charmbracelet/glamour v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
@@ -50,7 +52,6 @@ require (
 	github.com/richardlehane/mscfb v1.0.4 // indirect
 	github.com/richardlehane/msoleps v1.0.3 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/scylladb/termtables v0.0.0-20191203121021-c4c0b6d42ff4 // indirect
 	github.com/spf13/afero v1.9.3 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
