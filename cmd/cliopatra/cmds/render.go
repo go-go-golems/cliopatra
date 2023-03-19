@@ -20,16 +20,17 @@ import (
 )
 
 type renderCommandSettings struct {
-	Repository           []string `glazed.parameter:"repository"`
-	OutputDirectory      string   `glazed.parameter:"output-directory"`
-	OutputFile           string   `glazed.parameter:"output-file"`
-	Watch                bool     `glazed.parameter:"watch"`
-	Glob                 []string `glazed.parameter:"glob"`
-	WithGoTemplate       bool     `glazed.parameter:"with-go-template"`
-	WithYamlMarkers      bool     `glazed.parameter:"with-yaml-markers"`
-	Delimiters           []string `glazed.parameter:"delimiters"`
-	AllowProgramCreation bool     `glazed.parameter:"allow-program-creation"`
-	Quiet                bool     `glazed.parameter:"quiet"`
+	Repository           []string          `glazed.parameter:"repository"`
+	OutputDirectory      string            `glazed.parameter:"output-directory"`
+	OutputFile           string            `glazed.parameter:"output-file"`
+	Watch                bool              `glazed.parameter:"watch"`
+	Glob                 []string          `glazed.parameter:"glob"`
+	WithGoTemplate       bool              `glazed.parameter:"with-go-template"`
+	WithYamlMarkers      bool              `glazed.parameter:"with-yaml-markers"`
+	Delimiters           []string          `glazed.parameter:"delimiters"`
+	AllowProgramCreation bool              `glazed.parameter:"allow-program-creation"`
+	Quiet                bool              `glazed.parameter:"quiet"`
+	RenameOutputFiles    map[string]string `glazed.parameter:"rename-output-files"`
 }
 
 func NewRenderCommand() *cobra.Command {
@@ -62,6 +63,14 @@ func NewRenderCommand() *cobra.Command {
 				parameters.ParameterTypeStringList,
 				parameters.WithHelp("List of doublestar file glob"),
 				parameters.WithDefault([]string{"**/*.tmpl.md"}),
+			),
+			parameters.NewParameterDefinition(
+				"rename-output-files",
+				parameters.ParameterTypeKeyValue,
+				parameters.WithHelp("Rename output files"),
+				parameters.WithDefault(map[string]string{
+					"tmpl.md": "md",
+				}),
 			),
 			parameters.NewParameterDefinition(
 				"with-go-template",
@@ -138,14 +147,6 @@ func NewRenderCommand() *cobra.Command {
 			cobra.CheckErr(errors.New("files parameter is not a string list"))
 		}
 
-		watcherOptions := []watcher.Option{
-			watcher.WithPaths(files_...),
-		}
-
-		if settings.Glob != nil && len(settings.Glob) > 0 {
-			watcherOptions = append(watcherOptions, watcher.WithMask(settings.Glob...))
-		}
-
 		if settings.Delimiters != nil && len(settings.Delimiters) != 2 {
 			cobra.CheckErr(errors.New("delimiters parameter must have 2 values"))
 		}
@@ -164,6 +165,10 @@ func NewRenderCommand() *cobra.Command {
 
 		if settings.Delimiters != nil {
 			options = append(options, render.WithDelimiters(settings.Delimiters[0], settings.Delimiters[1]))
+		}
+
+		if settings.OutputDirectory != "" {
+			options = append(options, render.WithRenameOutputFiles(settings.RenameOutputFiles))
 		}
 
 		renderer := render.NewRenderer(options...)
@@ -223,31 +228,70 @@ func NewRenderCommand() *cobra.Command {
 				cobra.CheckErr(errors.New("output-directory parameter is empty"))
 			}
 
-			w := watcher.NewWatcher(func(path string) error {
-				// get the base path
-				basePath := path
-				for _, file := range files_ {
-					if strings.HasPrefix(path, file) {
-						basePath = file
-						break
+			watcherOptions := []watcher.Option{
+				watcher.WithWriteCallback(
+					func(path string) error {
+						// get the base path
+						basePath := path
+						for _, file := range files_ {
+							if strings.HasPrefix(path, file) {
+								basePath = file
+								break
+							}
+						}
+
+						outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
+						log.Debug().
+							Str("path", path).
+							Str("basePath", basePath).
+							Str("outputPath", outputPath).
+							Msg("File changed")
+
+						err = renderer.RenderFile(path, outputPath)
+						if err != nil {
+							log.Error().Err(err).Msg("Error rendering file")
+						}
+
+						return nil
+					}),
+				watcher.WithRemoveCallback(func(path string) error {
+					// get the base path
+					basePath := path
+					for _, file := range files_ {
+						if strings.HasPrefix(path, file) {
+							basePath = file
+							break
+						}
 					}
-				}
 
-				outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
-				log.Debug().
-					Str("path", path).
-					Str("basePath", basePath).
-					Str("outputPath", outputPath).
-					Msg("File changed")
+					outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
+					for k, v := range settings.RenameOutputFiles {
+						if strings.HasSuffix(outputPath, k) {
+							outputPath = strings.TrimSuffix(outputPath, k) + v
+							break
+						}
+					}
 
-				err = renderer.RenderFile(path, outputPath)
-				if err != nil {
-					log.Error().Err(err).Msg("Error rendering file")
-				}
+					log.Debug().
+						Str("path", path).
+						Str("basePath", basePath).
+						Str("outputPath", outputPath).
+						Msg("File removed")
 
-				return nil
-			},
-				watcherOptions...)
+					err = os.Remove(outputPath)
+					if err != nil {
+						log.Error().Err(err).Msg("Error removing file")
+					}
+					return nil
+				}),
+				watcher.WithPaths(files_...),
+			}
+
+			if settings.Glob != nil && len(settings.Glob) > 0 {
+				watcherOptions = append(watcherOptions, watcher.WithMask(settings.Glob...))
+			}
+
+			w := watcher.NewWatcher(watcherOptions...)
 
 			eg, ctx := errgroup.WithContext(context.Background())
 			ctx2, cancel := context.WithCancel(ctx)

@@ -22,6 +22,7 @@ type Renderer struct {
 	allowProgramCreation bool
 	masks                []string
 	verbose              bool
+	renameOutputFiles    map[string]string
 }
 
 type Option func(r *Renderer)
@@ -65,6 +66,12 @@ func WithAllowProgramCreation(allowProgramCreation bool) Option {
 func WithMasks(masks ...string) Option {
 	return func(r *Renderer) {
 		r.masks = masks
+	}
+}
+
+func WithRenameOutputFiles(renameOutputFiles map[string]string) Option {
+	return func(r *Renderer) {
+		r.renameOutputFiles = renameOutputFiles
 	}
 }
 
@@ -323,6 +330,12 @@ func (r *Renderer) checkMasks(file string) (bool, error) {
 }
 
 func (r *Renderer) RenderFile(file string, outputFile string) error {
+	for k, v := range r.renameOutputFiles {
+		if strings.HasSuffix(outputFile, k) {
+			outputFile = strings.TrimSuffix(outputFile, k) + v
+		}
+	}
+
 	f, err := os.Open(file)
 	if err != nil {
 		return err
