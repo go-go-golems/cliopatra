@@ -1,0 +1,3 @@
+# Foobar
+
+{{ run "ls" "-la" }}

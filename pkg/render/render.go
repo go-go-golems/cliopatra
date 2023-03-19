@@ -208,7 +208,13 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 				case string:
 					p_, err = r.clioLookupProgram(p)
 					if err != nil {
-						return "", err
+						if r.allowProgramCreation {
+							p_ = &pkg.Program{
+								Name: p,
+							}
+						} else {
+							return "", err
+						}
 					}
 				default:
 					return "", fmt.Errorf("invalid program type: %T", p)
@@ -321,7 +327,9 @@ func (r *Renderer) RenderFile(file string, outputFile string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
 
 	var w io.Writer
 
@@ -333,7 +341,9 @@ func (r *Renderer) RenderFile(file string, outputFile string) error {
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer func(out *os.File) {
+			_ = out.Close()
+		}(out)
 		w = out
 	}
 

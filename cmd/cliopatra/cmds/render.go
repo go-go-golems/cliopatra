@@ -9,6 +9,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
+	"github.com/go-go-golems/glazed/pkg/helpers"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -17,9 +18,6 @@ import (
 	"path/filepath"
 	"strings"
 )
-
-func runWatcher(args []string) {
-}
 
 type renderCommandSettings struct {
 	Repository           []string `glazed.parameter:"repository"`
@@ -170,62 +168,6 @@ func NewRenderCommand() *cobra.Command {
 
 		renderer := render.NewRenderer(options...)
 
-		if settings.Watch {
-			outputDirectory_, ok := ps["output-directory"]
-			if !ok {
-				cobra.CheckErr(errors.New("output-directory parameter not found"))
-			}
-
-			outputDirectory, ok := outputDirectory_.(string)
-			if !ok {
-				cobra.CheckErr(errors.New("output-directory parameter is not a string"))
-			}
-
-			if outputDirectory == "" {
-				cobra.CheckErr(errors.New("output-directory parameter is empty"))
-			}
-
-			w := watcher.NewWatcher(func(path string) error {
-				log.Info().Str("path", path).Msg("File changed")
-				// get the base path
-				basePath := path
-				for _, file := range files_ {
-					if strings.HasPrefix(path, file) {
-						basePath = file
-						break
-					}
-				}
-
-				outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
-				log.Info().
-					Str("path", path).
-					Str("basePath", basePath).
-					Str("outputPath", outputPath).
-					Msg("File changed")
-
-				return nil
-			},
-				watcherOptions...)
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			eg := errgroup.Group{}
-			eg.Go(func() error {
-				return w.Run(ctx)
-			})
-
-			err := eg.Wait()
-			// check that the error wasn't a cancel
-			if err != nil && err != context.Canceled {
-				log.Error().Err(err).Msg("Error running watcher")
-			}
-			cobra.CheckErr(err)
-
-			runWatcher(files.([]string))
-			return
-		}
-
 		if settings.OutputFile != "" && len(files_) > 1 {
 			cobra.CheckErr(errors.New("output-file parameter can only be used with a single file"))
 		}
@@ -250,7 +192,9 @@ func NewRenderCommand() *cobra.Command {
 			} else {
 				f, err := os.Open(file)
 				cobra.CheckErr(err)
-				defer f.Close()
+				defer func(f *os.File) {
+					_ = f.Close()
+				}(f)
 
 				var outputFile string
 				if settings.OutputFile != "" {
@@ -263,6 +207,71 @@ func NewRenderCommand() *cobra.Command {
 				cobra.CheckErr(err)
 			}
 		}
+
+		if settings.Watch {
+			outputDirectory_, ok := ps["output-directory"]
+			if !ok {
+				cobra.CheckErr(errors.New("output-directory parameter not found"))
+			}
+
+			outputDirectory, ok := outputDirectory_.(string)
+			if !ok {
+				cobra.CheckErr(errors.New("output-directory parameter is not a string"))
+			}
+
+			if outputDirectory == "" {
+				cobra.CheckErr(errors.New("output-directory parameter is empty"))
+			}
+
+			w := watcher.NewWatcher(func(path string) error {
+				// get the base path
+				basePath := path
+				for _, file := range files_ {
+					if strings.HasPrefix(path, file) {
+						basePath = file
+						break
+					}
+				}
+
+				outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
+				log.Debug().
+					Str("path", path).
+					Str("basePath", basePath).
+					Str("outputPath", outputPath).
+					Msg("File changed")
+
+				err = renderer.RenderFile(path, outputPath)
+				if err != nil {
+					log.Error().Err(err).Msg("Error rendering file")
+				}
+
+				return nil
+			},
+				watcherOptions...)
+
+			eg, ctx := errgroup.WithContext(context.Background())
+			ctx2, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			eg.Go(func() error {
+				log.Info().Msg("Starting watcher")
+				return w.Run(ctx2)
+			})
+			eg.Go(func() error {
+				return helpers.CancelOnSignal(ctx2, os.Interrupt, func() {
+					cancel()
+				})
+			})
+			cobra.CheckErr(err)
+
+			err := eg.Wait()
+			// check that the error wasn't a cancel
+			if err != nil && err != context.Canceled {
+				log.Error().Err(err).Msg("Error running watcher")
+				cobra.CheckErr(err)
+			}
+		}
+
 	}
 
 	// arguments: List of directories to render
