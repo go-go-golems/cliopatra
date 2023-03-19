@@ -32,7 +32,10 @@ func (l *LsProgramCommand) Run(
 		return fmt.Errorf("repository parameter not found")
 	}
 
-	programs := pkg.LoadRepositories(repositories)
+	programs, err := pkg.LoadRepositories(repositories)
+	if err != nil {
+		return err
+	}
 
 	gp.OutputFormatter().AddTableMiddlewareInFront(middlewares.NewReorderColumnOrderMiddleware([]string{"name", "desc", "args"}))
 

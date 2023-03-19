@@ -6,7 +6,6 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 	"io"
 	"io/fs"
@@ -184,9 +183,7 @@ func (p *Program) RunIntoWriter(
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Env = []string{}
 	// copy current environment
-	for _, e := range os.Environ() {
-		cmd.Env = append(cmd.Env, e)
-	}
+	cmd.Env = append(cmd.Env, os.Environ()...)
 	for k, v := range p.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
@@ -314,20 +311,26 @@ func LoadProgramsFromFS(f fs.FS, dir string) ([]*Program, error) {
 	return programs, nil
 }
 
-func LoadRepositories(repositories []string) map[string]*Program {
+func LoadRepositories(repositories []string) (map[string]*Program, error) {
 	programs := map[string]*Program{}
 
 	for _, repository := range repositories {
 		_, err := os.Stat(repository)
+		if err != nil {
+			return nil, errors.Wrapf(err, "could not stat repository %s", repository)
+		}
+
 		programs_, err := LoadProgramsFromFS(os.DirFS(repository), ".")
-		cobra.CheckErr(err)
+		if err != nil {
+			return nil, errors.Wrapf(err, "could not load programs from repository %s", repository)
+		}
 
 		for _, program := range programs_ {
 			if _, ok := programs[program.Name]; ok {
-				cobra.CheckErr(fmt.Errorf("program %s already exists", program.Name))
+				return nil, fmt.Errorf("program %s already exists", program.Name)
 			}
 			programs[program.Name] = program
 		}
 	}
-	return programs
+	return programs, nil
 }

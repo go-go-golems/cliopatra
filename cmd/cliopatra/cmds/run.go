@@ -26,7 +26,8 @@ func NewRunCommand() *cobra.Command {
 			repositories, err := cmd.Flags().GetStringSlice("repository")
 			cobra.CheckErr(err)
 
-			programs := pkg.LoadRepositories(repositories)
+			programs, err := pkg.LoadRepositories(repositories)
+			cobra.CheckErr(err)
 
 			file, err := cmd.Flags().GetString("file")
 			cobra.CheckErr(err)

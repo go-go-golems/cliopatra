@@ -136,7 +136,8 @@ func NewRenderCommand() *cobra.Command {
 		cobra.CheckErr(err)
 
 		repositories := ps["repository"]
-		programs := pkg.LoadRepositories(repositories.([]string))
+		programs, err := pkg.LoadRepositories(repositories.([]string))
+		cobra.CheckErr(err)
 
 		files, ok := ps["files"]
 		if !ok {
