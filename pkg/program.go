@@ -183,6 +183,10 @@ func (p *Program) RunIntoWriter(
 
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Env = []string{}
+	// copy current environment
+	for _, e := range os.Environ() {
+		cmd.Env = append(cmd.Env, e)
+	}
 	for k, v := range p.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
@@ -203,12 +207,13 @@ func (p *Program) ComputeArgs(ps map[string]interface{}) ([]string, error) {
 	var err error
 
 	args := []string{}
+
+	args = append(args, p.Verbs...)
+
 	// I'm not sure how useful this raw flags mixed with the other stuff is at all.
 	// I don't think both together make much sense, maybe we should differentiate
 	// at a higher level, so that it is either RawFlags, or all the rest
 	args = append(args, p.RawFlags...)
-
-	args = append(args, p.Verbs...)
 
 	for _, flag := range p.Flags {
 		flag_ := flag.Flag
