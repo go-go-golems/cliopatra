@@ -8,7 +8,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
-	"github.com/go-go-golems/glazed/pkg/middlewares"
+	"github.com/go-go-golems/glazed/pkg/middlewares/table"
 	"github.com/spf13/cobra"
 	"strings"
 )
@@ -37,7 +37,7 @@ func (l *LsProgramCommand) Run(
 		return err
 	}
 
-	gp.OutputFormatter().AddTableMiddlewareInFront(middlewares.NewReorderColumnOrderMiddleware([]string{"name", "desc", "args"}))
+	gp.OutputFormatter().AddTableMiddlewareInFront(table.NewReorderColumnOrderMiddleware([]string{"name", "desc", "args"}))
 
 	for _, program := range programs {
 		ps_, err2 := program.ComputeArgs(map[string]interface{}{})
