@@ -31,6 +31,7 @@ type renderCommandSettings struct {
 	AllowProgramCreation bool              `glazed.parameter:"allow-program-creation"`
 	Quiet                bool              `glazed.parameter:"quiet"`
 	RenameOutputFiles    map[string]string `glazed.parameter:"rename-output-files"`
+	BaseDirectory        string            `glazed.parameter:"base-directory"`
 }
 
 func NewRenderCommand() *cobra.Command {
@@ -40,6 +41,7 @@ func NewRenderCommand() *cobra.Command {
 				"repository",
 				parameters.ParameterTypeStringList,
 				parameters.WithHelp("List of repositories to use"),
+				parameters.WithDefault([]string{}),
 			),
 			parameters.NewParameterDefinition(
 				"output-directory",
@@ -101,6 +103,11 @@ func NewRenderCommand() *cobra.Command {
 				parameters.ParameterTypeBool,
 				parameters.WithHelp("Quiet mode"),
 				parameters.WithDefault(false),
+			),
+			parameters.NewParameterDefinition(
+				"base-directory",
+				parameters.ParameterTypeString,
+				parameters.WithHelp("Base directory"),
 			),
 		),
 	)
@@ -182,6 +189,20 @@ func NewRenderCommand() *cobra.Command {
 			settings.OutputDirectory += "/"
 		}
 
+		// fimd all directories given on the command line, and make sure they have a / at the end
+		dirs := []string{}
+		for _, file := range files_ {
+			fi, err := os.Stat(file)
+			cobra.CheckErr(err)
+			if fi.IsDir() {
+				d := file
+				if !strings.HasSuffix(d, "/") {
+					d += "/"
+				}
+				dirs = append(dirs, d)
+			}
+		}
+
 		for _, file := range files_ {
 			// check if file is a directory
 			fi, err := os.Stat(file)
@@ -206,7 +227,11 @@ func NewRenderCommand() *cobra.Command {
 				if settings.OutputFile != "" {
 					outputFile = settings.OutputFile
 				} else {
-					outputFile = filepath.Join(settings.OutputDirectory, filepath.Base(file))
+					basePath := render.ComputeBaseDirectory(file, dirs, settings.BaseDirectory)
+					outputFile = filepath.Join(
+						settings.OutputDirectory,
+						strings.TrimPrefix(file, basePath),
+					)
 				}
 
 				err = renderer.RenderFile(file, outputFile)
@@ -232,16 +257,9 @@ func NewRenderCommand() *cobra.Command {
 			watcherOptions := []watcher.Option{
 				watcher.WithWriteCallback(
 					func(path string) error {
-						// get the base path
-						basePath := path
-						for _, file := range files_ {
-							if strings.HasPrefix(path, file) {
-								basePath = file
-								break
-							}
-						}
-
+						basePath := render.ComputeBaseDirectory(path, files_, settings.BaseDirectory)
 						outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
+
 						log.Debug().
 							Str("path", path).
 							Str("basePath", basePath).
@@ -256,16 +274,9 @@ func NewRenderCommand() *cobra.Command {
 						return nil
 					}),
 				watcher.WithRemoveCallback(func(path string) error {
-					// get the base path
-					basePath := path
-					for _, file := range files_ {
-						if strings.HasPrefix(path, file) {
-							basePath = file
-							break
-						}
-					}
-
+					basePath := render.ComputeBaseDirectory(path, files_, settings.BaseDirectory)
 					outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
+
 					for k, v := range settings.RenameOutputFiles {
 						if strings.HasSuffix(outputPath, k) {
 							outputPath = strings.TrimSuffix(outputPath, k) + v

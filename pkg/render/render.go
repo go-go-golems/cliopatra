@@ -6,7 +6,7 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/go-go-golems/cliopatra/pkg"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
-	"github.com/go-go-golems/glazed/pkg/helpers"
+	"github.com/go-go-golems/glazed/pkg/helpers/templating"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +14,10 @@ import (
 	"text/template"
 )
 
+// Renderer renders recursive templates by exposing cliopatra specific template functions.
+//
+// NOTE(manuel, 2023-03-19) This could actually be a generic component that can be used for arbitrary recursive watching and rendering of templates
+// See https://github.com/go-go-golems/glazed/issues/223
 type Renderer struct {
 	programs             map[string]*pkg.Program
 	withGoTemplate       bool
@@ -135,7 +139,7 @@ func (r *Renderer) clioLookupProgram(name string) (*pkg.Program, error) {
 //
 //     `run` clones the program before modifying it with the passed options.
 func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
-	t := helpers.CreateTemplate(name).
+	t := templating.CreateTemplate(name).
 		Funcs(template.FuncMap{
 			"lookup": func(name string) (*pkg.Program, error) {
 				return r.clioLookupProgram(name)
@@ -439,4 +443,31 @@ func (r *Renderer) RenderDirectory(directory string, outputDirectory string) err
 	}
 
 	return r.recursiveRenderDirectory(directory, directory, outputDirectory)
+}
+
+// ComputeBaseDirectory computes the base directory for the given file.
+// If baseDirectory is not empty, it is returned.
+// Otherwise, the base directory is computed by finding the shortest common prefix
+// of the given file and all files.
+//
+// Input directories have to end with a slash, as they will otherwise be considered
+// files and stripped of their last component.
+//
+// The returned base directory won't have a / at the end.
+func ComputeBaseDirectory(file string, allFiles []string, baseDirectory string) string {
+	if baseDirectory != "" {
+		return baseDirectory
+	}
+
+	// get the base path
+	basePath := file
+	for _, f := range allFiles {
+		if strings.HasPrefix(file, f) {
+			if len(f) < len(basePath) {
+				basePath = f
+			}
+		}
+	}
+
+	return filepath.Dir(basePath)
 }
