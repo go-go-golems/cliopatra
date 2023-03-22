@@ -3,9 +3,9 @@ package cmds
 import (
 	"context"
 	"github.com/go-go-golems/clay/pkg/watcher"
-	"github.com/go-go-golems/cliopatra/pkg"
 	"github.com/go-go-golems/cliopatra/pkg/render"
 	"github.com/go-go-golems/glazed/pkg/cli"
+	"github.com/go-go-golems/glazed/pkg/cli/cliopatra"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
@@ -143,7 +143,7 @@ func NewRenderCommand() *cobra.Command {
 		cobra.CheckErr(err)
 
 		repositories := ps["repository"]
-		programs, err := pkg.LoadRepositories(repositories.([]string))
+		programs, err := cliopatra.LoadRepositories(repositories.([]string))
 		cobra.CheckErr(err)
 
 		files, ok := ps["files"]

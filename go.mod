@@ -4,14 +4,13 @@ go 1.19
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.0
-	github.com/go-go-golems/clay v0.0.10
-	github.com/go-go-golems/glazed v0.2.51
+	github.com/go-go-golems/clay v0.0.11
+	github.com/go-go-golems/glazed v0.2.55
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.29.0
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/sync v0.1.0
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -75,4 +74,5 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

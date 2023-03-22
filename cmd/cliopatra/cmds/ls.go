@@ -3,8 +3,8 @@ package cmds
 import (
 	"context"
 	"fmt"
-	"github.com/go-go-golems/cliopatra/pkg"
 	"github.com/go-go-golems/glazed/pkg/cli"
+	"github.com/go-go-golems/glazed/pkg/cli/cliopatra"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
@@ -32,7 +32,7 @@ func (l *LsProgramCommand) Run(
 		return fmt.Errorf("repository parameter not found")
 	}
 
-	programs, err := pkg.LoadRepositories(repositories)
+	programs, err := cliopatra.LoadRepositories(repositories)
 	if err != nil {
 		return err
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/go-go-golems/cliopatra/pkg"
+	"github.com/go-go-golems/glazed/pkg/cli/cliopatra"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/helpers/templating"
 	"io"
@@ -19,7 +19,7 @@ import (
 // NOTE(manuel, 2023-03-19) This could actually be a generic component that can be used for arbitrary recursive watching and rendering of templates
 // See https://github.com/go-go-golems/glazed/issues/223
 type Renderer struct {
-	programs             map[string]*pkg.Program
+	programs             map[string]*cliopatra.Program
 	withGoTemplate       bool
 	withYamlMarkers      bool
 	delimiters           []string
@@ -31,7 +31,7 @@ type Renderer struct {
 
 type Option func(r *Renderer)
 
-func WithPrograms(programs map[string]*pkg.Program) Option {
+func WithPrograms(programs map[string]*cliopatra.Program) Option {
 	return func(r *Renderer) {
 		r.programs = programs
 	}
@@ -93,9 +93,9 @@ func NewRenderer(options ...Option) *Renderer {
 
 // template functions to quickly address cliopatra programs
 
-type cliopatraTemplateOption func(p *pkg.Program) error
+type cliopatraTemplateOption func(p *cliopatra.Program) error
 
-func (r *Renderer) clioLookupProgram(name string) (*pkg.Program, error) {
+func (r *Renderer) clioLookupProgram(name string) (*cliopatra.Program, error) {
 	program, ok := r.programs[name]
 	if !ok {
 		return nil, fmt.Errorf("program %s not found", name)
@@ -141,12 +141,12 @@ func (r *Renderer) clioLookupProgram(name string) (*pkg.Program, error) {
 func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 	t := templating.CreateTemplate(name).
 		Funcs(template.FuncMap{
-			"lookup": func(name string) (*pkg.Program, error) {
+			"lookup": func(name string) (*cliopatra.Program, error) {
 				return r.clioLookupProgram(name)
 			},
-			"program": func(name string, options ...interface{}) (*pkg.Program, error) {
+			"program": func(name string, options ...interface{}) (*cliopatra.Program, error) {
 				if r.allowProgramCreation {
-					p := &pkg.Program{
+					p := &cliopatra.Program{
 						Name: name,
 					}
 
@@ -159,7 +159,7 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 
 						case string:
 							// NOTE(manuel, 2023-03-18) What we really want here is to actually do proper flag parsing
-							options_ = append(options_, func(p *pkg.Program) error {
+							options_ = append(options_, func(p *cliopatra.Program) error {
 								p.AddRawFlag(option)
 								return nil
 							})
@@ -179,73 +179,73 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 				}
 			},
 			"path": func(s string) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					p.Path = s
 					return nil
 				}
 			},
 			"verbs": func(s ...string) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					p.Verbs = s
 					return nil
 				}
 			},
 			"stdin": func(s string) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					p.Stdin = s
 					return nil
 				}
 			},
 			"env": func(s map[string]string) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					p.Env = s
 					return nil
 				}
 			},
 			"add_raw_flag": func(s ...string) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					p.AddRawFlag(s...)
 					return nil
 				}
 			},
 			"raw_flags": func(s ...string) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					p.RawFlags = s
 					return nil
 				}
 			},
 			"flag": func(name string, value interface{}) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					return p.SetFlagValue(name, value)
 				}
 			},
 			"flag_raw": func(name string, raw string) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					return p.SetFlagRaw(name, raw)
 				}
 			},
 			"arg": func(name string, value interface{}) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					return p.SetArgValue(name, value)
 				}
 			},
 			"arg_raw": func(name string, raw string) cliopatraTemplateOption {
-				return func(p *pkg.Program) error {
+				return func(p *cliopatra.Program) error {
 					return p.SetArgRaw(name, raw)
 				}
 			},
 			"run": func(p interface{}, options ...interface{}) (string, error) {
-				var p_ *pkg.Program
+				var p_ *cliopatra.Program
 				var err error
 
 				switch p := p.(type) {
-				case *pkg.Program:
+				case *cliopatra.Program:
 					p_ = p
 				case string:
 					p_, err = r.clioLookupProgram(p)
 					if err != nil {
 						if r.allowProgramCreation {
-							p_ = &pkg.Program{
+							p_ = &cliopatra.Program{
 								Name: p,
 							}
 						} else {
@@ -267,7 +267,7 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 
 					case string:
 						// NOTE(manuel, 2023-03-18) What we really want here is to actually do proper flag parsing
-						options_ = append(options_, func(p *pkg.Program) error {
+						options_ = append(options_, func(p *cliopatra.Program) error {
 							p.AddRawFlag(option)
 							return nil
 						})

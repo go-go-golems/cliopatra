@@ -3,7 +3,7 @@ package cmds
 import (
 	"context"
 	"fmt"
-	"github.com/go-go-golems/cliopatra/pkg"
+	"github.com/go-go-golems/glazed/pkg/cli/cliopatra"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/spf13/cobra"
 	"os"
@@ -26,7 +26,7 @@ func NewRunCommand() *cobra.Command {
 			repositories, err := cmd.Flags().GetStringSlice("repository")
 			cobra.CheckErr(err)
 
-			programs, err := pkg.LoadRepositories(repositories)
+			programs, err := cliopatra.LoadRepositories(repositories)
 			cobra.CheckErr(err)
 
 			file, err := cmd.Flags().GetString("file")
@@ -46,13 +46,13 @@ func NewRunCommand() *cobra.Command {
 				cobra.CheckErr(fmt.Errorf("cannot specify both file and program"))
 			}
 
-			var p *pkg.Program
+			var p *cliopatra.Program
 
 			if file != "" {
 				f, err := os.Open(file)
 				cobra.CheckErr(err)
 				defer f.Close()
-				p, err = pkg.NewProgramFromYAML(f)
+				p, err = cliopatra.NewProgramFromYAML(f)
 				cobra.CheckErr(err)
 			}
 
@@ -69,7 +69,7 @@ func NewRunCommand() *cobra.Command {
 				f, err := os.Open(args[0])
 				if err == nil {
 					defer f.Close()
-					p, err = pkg.NewProgramFromYAML(f)
+					p, err = cliopatra.NewProgramFromYAML(f)
 					cobra.CheckErr(err)
 				} else {
 					p_, ok := programs[args[0]]
@@ -99,7 +99,10 @@ func NewRunCommand() *cobra.Command {
 				map[string]interface{}{},
 				buf,
 			)
-			cobra.CheckErr(err)
+			if err != nil {
+				_, _ = fmt.Fprint(os.Stderr, buf.String())
+				cobra.CheckErr(err)
+			}
 
 			fmt.Println(buf.String())
 		},
