@@ -14,12 +14,17 @@ import (
 	"text/template"
 )
 
+type Repository interface {
+	GetPrograms() map[string]*cliopatra.Program
+}
+
 // Renderer renders recursive templates by exposing cliopatra specific template functions.
 //
 // NOTE(manuel, 2023-03-19) This could actually be a generic component that can be used for arbitrary recursive watching and rendering of templates
 // See https://github.com/go-go-golems/glazed/issues/223
 type Renderer struct {
 	programs             map[string]*cliopatra.Program
+	repositories         []Repository
 	withGoTemplate       bool
 	withYamlMarkers      bool
 	delimiters           []string
@@ -34,6 +39,12 @@ type Option func(r *Renderer)
 func WithPrograms(programs map[string]*cliopatra.Program) Option {
 	return func(r *Renderer) {
 		r.programs = programs
+	}
+}
+
+func WithRepositories(repositories ...Repository) Option {
+	return func(r *Renderer) {
+		r.repositories = repositories
 	}
 }
 
@@ -96,6 +107,16 @@ func NewRenderer(options ...Option) *Renderer {
 type cliopatraTemplateOption func(p *cliopatra.Program) error
 
 func (r *Renderer) clioLookupProgram(name string) (*cliopatra.Program, error) {
+	// NOTE(manuel, 2023-03-27) Not sure about the precedence rules for looking up programs in the templates.
+	// should we go through the fixed commands first? or through the repositories?
+	// and should we go through repositories in reverse order?
+	for _, repository := range r.repositories {
+		program, ok := repository.GetPrograms()[name]
+		if ok {
+			return program, nil
+		}
+	}
+
 	program, ok := r.programs[name]
 	if !ok {
 		return nil, fmt.Errorf("program %s not found", name)

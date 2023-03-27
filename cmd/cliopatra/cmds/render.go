@@ -3,9 +3,9 @@ package cmds
 import (
 	"context"
 	"github.com/go-go-golems/clay/pkg/watcher"
+	"github.com/go-go-golems/cliopatra/pkg"
 	"github.com/go-go-golems/cliopatra/pkg/render"
 	"github.com/go-go-golems/glazed/pkg/cli"
-	"github.com/go-go-golems/glazed/pkg/cli/cliopatra"
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
@@ -142,8 +142,9 @@ func NewRenderCommand() *cobra.Command {
 		err = parameters.InitializeStructFromParameters(settings, renderLayer.Parameters)
 		cobra.CheckErr(err)
 
-		repositories := ps["repository"]
-		programs, err := cliopatra.LoadRepositories(repositories.([]string))
+		repositories := ps["repository"].([]string)
+		repository := pkg.NewRepository(repositories)
+		err = repository.Load()
 		cobra.CheckErr(err)
 
 		files, ok := ps["files"]
@@ -161,7 +162,7 @@ func NewRenderCommand() *cobra.Command {
 
 		// Create the renderer, now that we gathered all the options
 		options := []render.Option{
-			render.WithPrograms(programs),
+			render.WithRepositories(repository),
 			render.WithGoTemplate(settings.WithGoTemplate),
 			render.WithYamlMarkers(settings.WithYamlMarkers),
 			render.WithAllowProgramCreation(settings.AllowProgramCreation),
@@ -312,6 +313,9 @@ func NewRenderCommand() *cobra.Command {
 			eg.Go(func() error {
 				log.Info().Msg("Starting watcher")
 				return w.Run(ctx2)
+			})
+			eg.Go(func() error {
+				return repository.Watch(ctx2)
 			})
 			eg.Go(func() error {
 				return helpers.CancelOnSignal(ctx2, os.Interrupt, func() {
