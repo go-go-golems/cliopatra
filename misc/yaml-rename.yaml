@@ -1,0 +1,21 @@
+name: glaze
+verbs:
+    - yaml
+description: Format YAML data
+flags:
+    - name: rename
+      short: Rename fields (list of oldName:newName)
+      type: stringList
+      value:
+        - baz:blop
+    - name: input-is-array
+      short: Input is an array of objects
+      type: bool
+      value: true
+args:
+    - name: input-files
+      short: ""
+      type: stringList
+      value:
+        - misc/test-data/test.yaml
+
