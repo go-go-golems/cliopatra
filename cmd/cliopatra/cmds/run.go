@@ -3,6 +3,7 @@ package cmds
 import (
 	"context"
 	"fmt"
+	"github.com/go-go-golems/cliopatra/pkg"
 	"github.com/go-go-golems/glazed/pkg/cli/cliopatra"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/spf13/cobra"
@@ -26,7 +27,8 @@ func NewRunCommand() *cobra.Command {
 			repositories, err := cmd.Flags().GetStringSlice("repository")
 			cobra.CheckErr(err)
 
-			programs, err := cliopatra.LoadRepositories(repositories)
+			repository := pkg.NewRepository(repositories)
+			err = repository.Load()
 			cobra.CheckErr(err)
 
 			file, err := cmd.Flags().GetString("file")
@@ -55,6 +57,8 @@ func NewRunCommand() *cobra.Command {
 				p, err = cliopatra.NewProgramFromYAML(f)
 				cobra.CheckErr(err)
 			}
+
+			programs := repository.GetPrograms()
 
 			if program != "" {
 				p_, ok := programs[program]
