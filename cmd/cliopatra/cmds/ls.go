@@ -9,6 +9,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/glazed/pkg/middlewares/table"
+	"github.com/go-go-golems/glazed/pkg/processor"
 	"github.com/spf13/cobra"
 	"strings"
 )
@@ -25,7 +26,7 @@ func (l *LsProgramCommand) Run(
 	ctx context.Context,
 	parsedLayers map[string]*layers.ParsedParameterLayer,
 	ps map[string]interface{},
-	gp cmds.Processor,
+	gp processor.Processor,
 ) error {
 	repositories, ok := ps["repository"].([]string)
 	if !ok {
@@ -50,7 +51,7 @@ func (l *LsProgramCommand) Run(
 			"desc": program.Description,
 			"args": strings.Join(ps_, " "),
 		}
-		err := gp.ProcessInputObject(obj)
+		err := gp.ProcessInputObject(ctx, obj)
 		if err != nil {
 			return err
 		}
