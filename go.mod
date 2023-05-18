@@ -4,8 +4,8 @@ go 1.19
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.0
-	github.com/go-go-golems/clay v0.0.14
-	github.com/go-go-golems/glazed v0.2.77
+	github.com/go-go-golems/clay v0.0.16
+	github.com/go-go-golems/glazed v0.2.81
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.29.0
 	github.com/spf13/cobra v1.6.1

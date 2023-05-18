@@ -10,6 +10,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
 	"github.com/go-go-golems/glazed/pkg/middlewares/table"
 	"github.com/go-go-golems/glazed/pkg/processor"
+	"github.com/go-go-golems/glazed/pkg/settings"
 	"github.com/spf13/cobra"
 	"strings"
 )
@@ -62,7 +63,7 @@ func (l *LsProgramCommand) Run(
 
 // NewLsCommand returns a new command that lists all the programs available in the repositories.
 func NewLsCommand() *cobra.Command {
-	glazedParameterLayer, err := cli.NewGlazedParameterLayers()
+	glazedParameterLayer, err := settings.NewGlazedParameterLayers()
 	cobra.CheckErr(err)
 
 	cmd := &LsProgramCommand{
