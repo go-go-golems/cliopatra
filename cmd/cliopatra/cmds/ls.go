@@ -16,11 +16,7 @@ import (
 )
 
 type LsProgramCommand struct {
-	description *cmds.CommandDescription
-}
-
-func (l *LsProgramCommand) Description() *cmds.CommandDescription {
-	return l.description
+	*cmds.CommandDescription
 }
 
 func (l *LsProgramCommand) Run(
@@ -65,7 +61,7 @@ func NewLsCommand() *cobra.Command {
 	cobra.CheckErr(err)
 
 	cmd := &LsProgramCommand{
-		description: cmds.NewCommandDescription("ls",
+		CommandDescription: cmds.NewCommandDescription("ls",
 			cmds.WithFlags(
 				parameters.NewParameterDefinition(
 					"repository",
