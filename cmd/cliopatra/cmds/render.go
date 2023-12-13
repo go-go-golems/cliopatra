@@ -9,12 +9,12 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
-	"github.com/go-go-golems/glazed/pkg/helpers"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 )
@@ -309,6 +309,8 @@ func NewRenderCommand() *cobra.Command {
 			eg, ctx := errgroup.WithContext(context.Background())
 			ctx2, cancel := context.WithCancel(ctx)
 			defer cancel()
+			ctx2, stop := signal.NotifyContext(ctx2, os.Interrupt)
+			defer stop()
 
 			eg.Go(func() error {
 				log.Info().Msg("Starting watcher")
@@ -316,11 +318,6 @@ func NewRenderCommand() *cobra.Command {
 			})
 			eg.Go(func() error {
 				return repository.Watch(ctx2)
-			})
-			eg.Go(func() error {
-				return helpers.CancelOnSignal(ctx2, os.Interrupt, func() {
-					cancel()
-				})
 			})
 			cobra.CheckErr(err)
 
