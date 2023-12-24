@@ -53,7 +53,9 @@ func NewRunCommand() *cobra.Command {
 			if file != "" {
 				f, err := os.Open(file)
 				cobra.CheckErr(err)
-				defer f.Close()
+				defer func(f *os.File) {
+					_ = f.Close()
+				}(f)
 				p, err = cliopatra.NewProgramFromYAML(f)
 				cobra.CheckErr(err)
 			}
@@ -72,7 +74,9 @@ func NewRunCommand() *cobra.Command {
 				// check if args[0] is a yaml file, otherwise treat as program name
 				f, err := os.Open(args[0])
 				if err == nil {
-					defer f.Close()
+					defer func(f *os.File) {
+						_ = f.Close()
+					}(f)
 					p, err = cliopatra.NewProgramFromYAML(f)
 					cobra.CheckErr(err)
 				} else {
@@ -99,8 +103,7 @@ func NewRunCommand() *cobra.Command {
 			buf := &strings.Builder{}
 			err = p.RunIntoWriter(
 				ctx,
-				map[string]*layers.ParsedParameterLayer{},
-				map[string]interface{}{},
+				layers.NewParsedLayers(),
 				buf,
 			)
 			if err != nil {
