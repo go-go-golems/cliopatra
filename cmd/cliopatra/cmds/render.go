@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-type renderCommandSettings struct {
+type renderSettings struct {
 	Repository           []string          `glazed.parameter:"repository"`
 	OutputDirectory      string            `glazed.parameter:"output-directory"`
 	OutputFile           string            `glazed.parameter:"output-file"`
@@ -35,8 +35,15 @@ type renderCommandSettings struct {
 	Files                []string          `glazed.argument:"files"`
 }
 
+type renderCommandSettings struct {
+	Files []string `glazed.parameter:"files"`
+}
+
+const RenderSlug = "render"
+
 func NewRenderCommand() *cobra.Command {
-	renderLayer, err := layers.NewParameterLayer("render", "Cliopatra rendering options",
+	renderLayer, err := layers.NewParameterLayer(
+		RenderSlug, "Cliopatra rendering options",
 		layers.WithParameterDefinitions(
 			parameters.NewParameterDefinition(
 				"repository",
@@ -132,19 +139,18 @@ func NewRenderCommand() *cobra.Command {
 	renderCommand := cobraParser.Cmd
 
 	renderCommand.Run = func(cmd *cobra.Command, args []string) {
-		parsedLayers, err := cobraParser.Parse()
+		parsedLayers, err := cobraParser.Parse(cmd, args)
 		cobra.CheckErr(err)
 
-		renderLayer, ok := parsedLayers.Get("render")
-		if !ok {
-			cobra.CheckErr(errors.New("render layer not found"))
-		}
-		settings := &renderCommandSettings{}
-		err = renderLayer.InitializeStruct(settings)
+		settings := &renderSettings{}
+		err = parsedLayers.InitializeStruct(RenderSlug, settings)
 		cobra.CheckErr(err)
 
-		repositories := settings.Repository
-		repository := pkg.NewRepository(repositories)
+		s := &renderCommandSettings{}
+		err = parsedLayers.InitializeStruct(layers.DefaultSlug, s)
+		cobra.CheckErr(err)
+
+		repository := pkg.NewRepository(settings.Repository)
 		err = repository.Load()
 		cobra.CheckErr(err)
 
@@ -174,7 +180,7 @@ func NewRenderCommand() *cobra.Command {
 
 		renderer := render.NewRenderer(options...)
 
-		if settings.OutputFile != "" && len(settings.Files) > 1 {
+		if settings.OutputFile != "" && len(s.Files) > 1 {
 			cobra.CheckErr(errors.New("output-file parameter can only be used with a single file"))
 		}
 
@@ -184,7 +190,7 @@ func NewRenderCommand() *cobra.Command {
 
 		// fimd all directories given on the command line, and make sure they have a / at the end
 		dirs := []string{}
-		for _, file := range settings.Files {
+		for _, file := range s.Files {
 			fi, err := os.Stat(file)
 			cobra.CheckErr(err)
 			if fi.IsDir() {
@@ -196,7 +202,7 @@ func NewRenderCommand() *cobra.Command {
 			}
 		}
 
-		for _, file := range settings.Files {
+		for _, file := range s.Files {
 			// check if file is a directory
 			fi, err := os.Stat(file)
 			cobra.CheckErr(err)
@@ -233,6 +239,7 @@ func NewRenderCommand() *cobra.Command {
 		}
 
 		if settings.Watch {
+
 			if settings.OutputDirectory == "" {
 				cobra.CheckErr(errors.New("output-directory parameter is empty"))
 			}
@@ -240,7 +247,7 @@ func NewRenderCommand() *cobra.Command {
 			watcherOptions := []watcher.Option{
 				watcher.WithWriteCallback(
 					func(path string) error {
-						basePath := render.ComputeBaseDirectory(path, settings.Files, settings.BaseDirectory)
+						basePath := render.ComputeBaseDirectory(path, s.Files, settings.BaseDirectory)
 						outputPath := filepath.Join(settings.OutputDirectory, strings.TrimPrefix(path, basePath))
 
 						log.Debug().
@@ -257,7 +264,7 @@ func NewRenderCommand() *cobra.Command {
 						return nil
 					}),
 				watcher.WithRemoveCallback(func(path string) error {
-					basePath := render.ComputeBaseDirectory(path, settings.Files, settings.BaseDirectory)
+					basePath := render.ComputeBaseDirectory(path, s.Files, settings.BaseDirectory)
 					outputPath := filepath.Join(settings.OutputDirectory, strings.TrimPrefix(path, basePath))
 
 					for k, v := range settings.RenameOutputFiles {
@@ -279,7 +286,7 @@ func NewRenderCommand() *cobra.Command {
 					}
 					return nil
 				}),
-				watcher.WithPaths(settings.Files...),
+				watcher.WithPaths(s.Files...),
 			}
 
 			if settings.Glob != nil && len(settings.Glob) > 0 {

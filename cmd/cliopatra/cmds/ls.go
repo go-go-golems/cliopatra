@@ -18,8 +18,6 @@ type LsProgramCommand struct {
 	*cmds.CommandDescription
 }
 
-var _ cmds.GlazeCommand = &LsProgramCommand{}
-
 // NewLsCommand returns a new command that lists all the programs available in the repositories.
 func NewLsCommand() *cobra.Command {
 	glazedParameterLayer, err := settings.NewGlazedParameterLayers()
@@ -58,7 +56,6 @@ func (l *LsProgramCommand) RunIntoGlazeProcessor(
 	if err != nil {
 		return err
 	}
-
 	r := pkg.NewRepository(s.Repositories)
 	err = r.Load()
 	if err != nil {
@@ -66,7 +63,7 @@ func (l *LsProgramCommand) RunIntoGlazeProcessor(
 	}
 
 	for _, program := range r.GetPrograms() {
-		ps_, err2 := program.ComputeArgs(parameters.NewParsedParameters())
+		ps_, err2 := program.ComputeArgs(parsedLayers.GetAllParsedParameters())
 		if err2 != nil {
 			return err2
 		}
