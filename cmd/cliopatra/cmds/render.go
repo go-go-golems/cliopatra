@@ -123,7 +123,7 @@ func NewRenderCommand() *cobra.Command {
 
 	description := cmds.NewCommandDescription("render",
 		cmds.WithLong("Render a go template file by expanding cliopatra calls"),
-		cmds.WithLayers(renderLayer),
+		cmds.WithLayersList(renderLayer),
 		cmds.WithArguments(
 			parameters.NewParameterDefinition(
 				"files",

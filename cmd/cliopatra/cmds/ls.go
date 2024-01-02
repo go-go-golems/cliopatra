@@ -33,7 +33,7 @@ func NewLsCommand() *cobra.Command {
 					parameters.WithRequired(true),
 				),
 			),
-			cmds.WithLayers(glazedParameterLayer),
+			cmds.WithLayersList(glazedParameterLayer),
 		),
 	}
 	cobraCommand, err := cli.BuildCobraCommandFromGlazeCommand(cmd)
