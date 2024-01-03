@@ -9,17 +9,17 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/cmds/parameters"
-	"github.com/go-go-golems/glazed/pkg/helpers"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 )
 
-type renderCommandSettings struct {
+type renderSettings struct {
 	Repository           []string          `glazed.parameter:"repository"`
 	OutputDirectory      string            `glazed.parameter:"output-directory"`
 	OutputFile           string            `glazed.parameter:"output-file"`
@@ -32,11 +32,19 @@ type renderCommandSettings struct {
 	Quiet                bool              `glazed.parameter:"quiet"`
 	RenameOutputFiles    map[string]string `glazed.parameter:"rename-output-files"`
 	BaseDirectory        string            `glazed.parameter:"base-directory"`
+	Files                []string          `glazed.argument:"files"`
 }
 
+type renderCommandSettings struct {
+	Files []string `glazed.parameter:"files"`
+}
+
+const RenderSlug = "render"
+
 func NewRenderCommand() *cobra.Command {
-	renderLayer, err := layers.NewParameterLayer("render", "Cliopatra rendering options",
-		layers.WithFlags(
+	renderLayer, err := layers.NewParameterLayer(
+		RenderSlug, "Cliopatra rendering options",
+		layers.WithParameterDefinitions(
 			parameters.NewParameterDefinition(
 				"repository",
 				parameters.ParameterTypeStringList,
@@ -115,7 +123,7 @@ func NewRenderCommand() *cobra.Command {
 
 	description := cmds.NewCommandDescription("render",
 		cmds.WithLong("Render a go template file by expanding cliopatra calls"),
-		cmds.WithLayers(renderLayer),
+		cmds.WithLayersList(renderLayer),
 		cmds.WithArguments(
 			parameters.NewParameterDefinition(
 				"files",
@@ -131,30 +139,20 @@ func NewRenderCommand() *cobra.Command {
 	renderCommand := cobraParser.Cmd
 
 	renderCommand.Run = func(cmd *cobra.Command, args []string) {
-		parsedLayers, ps, err := cobraParser.Parse(args)
+		parsedLayers, err := cobraParser.Parse(cmd, args)
 		cobra.CheckErr(err)
 
-		renderLayer, ok := parsedLayers["render"]
-		if !ok {
-			cobra.CheckErr(errors.New("render layer not found"))
-		}
-		settings := &renderCommandSettings{}
-		err = parameters.InitializeStructFromParameters(settings, renderLayer.Parameters)
+		settings := &renderSettings{}
+		err = parsedLayers.InitializeStruct(RenderSlug, settings)
 		cobra.CheckErr(err)
 
-		repositories := ps["repository"].([]string)
-		repository := pkg.NewRepository(repositories)
+		s := &renderCommandSettings{}
+		err = parsedLayers.InitializeStruct(layers.DefaultSlug, s)
+		cobra.CheckErr(err)
+
+		repository := pkg.NewRepository(settings.Repository)
 		err = repository.Load()
 		cobra.CheckErr(err)
-
-		files, ok := ps["files"]
-		if !ok {
-			cobra.CheckErr(errors.New("files parameter not found"))
-		}
-		files_, ok := files.([]string)
-		if !ok {
-			cobra.CheckErr(errors.New("files parameter is not a string list"))
-		}
 
 		if settings.Delimiters != nil && len(settings.Delimiters) != 2 {
 			cobra.CheckErr(errors.New("delimiters parameter must have 2 values"))
@@ -182,7 +180,7 @@ func NewRenderCommand() *cobra.Command {
 
 		renderer := render.NewRenderer(options...)
 
-		if settings.OutputFile != "" && len(files_) > 1 {
+		if settings.OutputFile != "" && len(s.Files) > 1 {
 			cobra.CheckErr(errors.New("output-file parameter can only be used with a single file"))
 		}
 
@@ -192,7 +190,7 @@ func NewRenderCommand() *cobra.Command {
 
 		// fimd all directories given on the command line, and make sure they have a / at the end
 		dirs := []string{}
-		for _, file := range files_ {
+		for _, file := range s.Files {
 			fi, err := os.Stat(file)
 			cobra.CheckErr(err)
 			if fi.IsDir() {
@@ -204,7 +202,7 @@ func NewRenderCommand() *cobra.Command {
 			}
 		}
 
-		for _, file := range files_ {
+		for _, file := range s.Files {
 			// check if file is a directory
 			fi, err := os.Stat(file)
 			cobra.CheckErr(err)
@@ -241,25 +239,16 @@ func NewRenderCommand() *cobra.Command {
 		}
 
 		if settings.Watch {
-			outputDirectory_, ok := ps["output-directory"]
-			if !ok {
-				cobra.CheckErr(errors.New("output-directory parameter not found"))
-			}
 
-			outputDirectory, ok := outputDirectory_.(string)
-			if !ok {
-				cobra.CheckErr(errors.New("output-directory parameter is not a string"))
-			}
-
-			if outputDirectory == "" {
+			if settings.OutputDirectory == "" {
 				cobra.CheckErr(errors.New("output-directory parameter is empty"))
 			}
 
 			watcherOptions := []watcher.Option{
 				watcher.WithWriteCallback(
 					func(path string) error {
-						basePath := render.ComputeBaseDirectory(path, files_, settings.BaseDirectory)
-						outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
+						basePath := render.ComputeBaseDirectory(path, s.Files, settings.BaseDirectory)
+						outputPath := filepath.Join(settings.OutputDirectory, strings.TrimPrefix(path, basePath))
 
 						log.Debug().
 							Str("path", path).
@@ -275,8 +264,8 @@ func NewRenderCommand() *cobra.Command {
 						return nil
 					}),
 				watcher.WithRemoveCallback(func(path string) error {
-					basePath := render.ComputeBaseDirectory(path, files_, settings.BaseDirectory)
-					outputPath := filepath.Join(outputDirectory, strings.TrimPrefix(path, basePath))
+					basePath := render.ComputeBaseDirectory(path, s.Files, settings.BaseDirectory)
+					outputPath := filepath.Join(settings.OutputDirectory, strings.TrimPrefix(path, basePath))
 
 					for k, v := range settings.RenameOutputFiles {
 						if strings.HasSuffix(outputPath, k) {
@@ -297,7 +286,7 @@ func NewRenderCommand() *cobra.Command {
 					}
 					return nil
 				}),
-				watcher.WithPaths(files_...),
+				watcher.WithPaths(s.Files...),
 			}
 
 			if settings.Glob != nil && len(settings.Glob) > 0 {
@@ -309,6 +298,8 @@ func NewRenderCommand() *cobra.Command {
 			eg, ctx := errgroup.WithContext(context.Background())
 			ctx2, cancel := context.WithCancel(ctx)
 			defer cancel()
+			ctx2, stop := signal.NotifyContext(ctx2, os.Interrupt)
+			defer stop()
 
 			eg.Go(func() error {
 				log.Info().Msg("Starting watcher")
@@ -316,11 +307,6 @@ func NewRenderCommand() *cobra.Command {
 			})
 			eg.Go(func() error {
 				return repository.Watch(ctx2)
-			})
-			eg.Go(func() error {
-				return helpers.CancelOnSignal(ctx2, os.Interrupt, func() {
-					cancel()
-				})
 			})
 			cobra.CheckErr(err)
 

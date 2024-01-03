@@ -302,12 +302,11 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 					}
 				}
 
-				ps := map[string]interface{}{}
-				parsedLayers := map[string]*layers.ParsedParameterLayer{}
+				parsedLayers := layers.NewParsedLayers()
 				buf := strings.Builder{}
 
 				ctx := context.Background()
-				err = p_.RunIntoWriter(ctx, parsedLayers, ps, &buf)
+				err = p_.RunIntoWriter(ctx, parsedLayers, &buf)
 				if err != nil {
 					return "", err
 				}
