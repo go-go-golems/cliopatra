@@ -134,9 +134,11 @@ func NewRenderCommand() *cobra.Command {
 		),
 	)
 
-	cobraParser, err := cli.NewCobraParserFromCommandDescription(description)
+	renderCommand := cli.NewCobraCommandFromCommandDescription(description)
+	cobraParser, err := cli.NewCobraParserFromLayers(description.Layers)
 	cobra.CheckErr(err)
-	renderCommand := cobraParser.Cmd
+	err = cobraParser.AddToCobraCommand(renderCommand)
+	cobra.CheckErr(err)
 
 	renderCommand.Run = func(cmd *cobra.Command, args []string) {
 		parsedLayers, err := cobraParser.Parse(cmd, args)
