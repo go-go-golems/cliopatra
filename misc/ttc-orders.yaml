@@ -1,0 +1,51 @@
+name: ttc-orders
+path: sqleton
+verbs:
+    - ttc
+    - orders
+    - orders
+description: Show WooCommerce orders.
+flags:
+    - name: use-dbt-profiles
+      short: Use dbt profiles.yml file
+      type: bool
+      value: true
+      noValue: true
+      log:
+        - source: defaults
+          value: false
+          metadata: {}
+        - source: viper
+          value: true
+          metadata:
+            flag: use-dbt-profiles
+            layer: Dbt flags
+    - name: dbt-profile
+      short: dbt profile to use
+      type: string
+      value: localhost.ttc
+      log:
+        - source: defaults
+          value: ""
+          metadata: {}
+        - source: viper
+          value: localhost.ttc
+          metadata:
+            flag: dbt-profile
+            layer: Dbt flags
+    - name: output
+      short: Output format (table, csv, tsv, json, yaml, sql, template, markdown)
+      type: choice
+      value: table
+      log:
+        - source: defaults
+          value: table
+          metadata: {}
+        - source: cobra
+          value: table
+          metadata:
+            flag: output
+            layer: Glazed Flags
+            parsed-strings:
+                - table
+
