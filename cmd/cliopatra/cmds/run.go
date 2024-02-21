@@ -20,7 +20,7 @@ import (
 // See https://github.com/go-go-golems/glazed/issues/220
 func NewRunCommand() *cobra.Command {
 	runCommand := &cobra.Command{
-		Use:   "run",
+		Use:   "run <cmd.yaml>",
 		Short: "Run a command from a file or from a repository program",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -94,6 +94,7 @@ func NewRunCommand() *cobra.Command {
 
 			// TODO(manuel, 2023-03-17) To allow the user to override flags of the loaded cliopatra program
 			// we need to use a similar mechanism to what sqleton does with its run-command hack.
+			//
 			// We basically need to handle flags manually until we know which program we are going to run,
 			// at that point we can initialize a custom cobra command with the necessary flags,
 			// and run that instead after doing some os.Args splicing.
