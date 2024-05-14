@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-go-golems/clay/pkg/watcher"
 	"github.com/go-go-golems/glazed/pkg/cli/cliopatra"
 	"github.com/pkg/errors"
@@ -101,7 +100,7 @@ func (r *Repository) Load() error {
 		for _, rp := range programs_ {
 			name := rp.program.Name
 			if _, ok := r.repositoryPrograms[name]; ok {
-				return fmt.Errorf("program %s already exists", name)
+				return errors.Errorf("program %s already exists", name)
 			}
 			rp.fs_ = nil
 			rp.path = filepath.Join(repository, rp.path)

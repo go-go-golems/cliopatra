@@ -7,6 +7,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cli/cliopatra"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
 	"github.com/go-go-golems/glazed/pkg/helpers/templating"
+	"github.com/pkg/errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -119,7 +120,7 @@ func (r *Renderer) clioLookupProgram(name string) (*cliopatra.Program, error) {
 
 	program, ok := r.programs[name]
 	if !ok {
-		return nil, fmt.Errorf("program %s not found", name)
+		return nil, errors.Errorf("program %s not found", name)
 	}
 	return program, nil
 }
@@ -196,7 +197,7 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 
 					return p, nil
 				} else {
-					return nil, fmt.Errorf("program creation is not allowed")
+					return nil, errors.Errorf("program creation is not allowed")
 				}
 			},
 			"path": func(s string) cliopatraTemplateOption {
@@ -274,7 +275,7 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 						}
 					}
 				default:
-					return "", fmt.Errorf("invalid program type: %T", p)
+					return "", errors.Errorf("invalid program type: %T", p)
 				}
 
 				p_ = p_.Clone()
@@ -317,7 +318,7 @@ func (r *Renderer) CreateTemplate(name string) (*template.Template, error) {
 
 	if r.delimiters != nil {
 		if len(r.delimiters) != 2 {
-			return nil, fmt.Errorf("invalid delimiters: %v", r.delimiters)
+			return nil, errors.Errorf("invalid delimiters: %v", r.delimiters)
 		}
 		t = t.Delims(r.delimiters[0], r.delimiters[1])
 	}

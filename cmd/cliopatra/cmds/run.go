@@ -6,6 +6,7 @@ import (
 	"github.com/go-go-golems/cliopatra/pkg"
 	"github.com/go-go-golems/glazed/pkg/cli/cliopatra"
 	"github.com/go-go-golems/glazed/pkg/cmds/layers"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"os"
 	"strings"
@@ -45,7 +46,7 @@ func NewRunCommand() *cobra.Command {
 			}
 
 			if options > 1 {
-				cobra.CheckErr(fmt.Errorf("cannot specify both file and program"))
+				cobra.CheckErr(errors.Errorf("cannot specify both file and program"))
 			}
 
 			var p *cliopatra.Program
@@ -65,7 +66,7 @@ func NewRunCommand() *cobra.Command {
 			if program != "" {
 				p_, ok := programs[program]
 				if !ok {
-					cobra.CheckErr(fmt.Errorf("program %s not found", program))
+					cobra.CheckErr(errors.Errorf("program %s not found", program))
 				}
 				p = p_
 			}
@@ -82,14 +83,14 @@ func NewRunCommand() *cobra.Command {
 				} else {
 					p_, ok := programs[args[0]]
 					if !ok {
-						cobra.CheckErr(fmt.Errorf("program %s not found", args[0]))
+						cobra.CheckErr(errors.Errorf("program %s not found", args[0]))
 					}
 					p = p_
 				}
 			}
 
 			if p == nil {
-				cobra.CheckErr(fmt.Errorf("either file or program must be specified"))
+				cobra.CheckErr(errors.Errorf("either file or program must be specified"))
 			}
 
 			// TODO(manuel, 2023-03-17) To allow the user to override flags of the loaded cliopatra program
