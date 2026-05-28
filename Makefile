@@ -46,3 +46,11 @@ cliopatra_BINARY=$(shell which cliopatra)
 install:
 	go build -o ./dist/cliopatra ./cmd/cliopatra && \
 		cp ./dist/cliopatra $(cliopatra_BINARY)
+
+.PHONY: logcopter-generate
+logcopter-generate:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.cliopatra -strip-prefix github.com/go-go-golems/cliopatra ./cmd/... ./pkg/...
+
+.PHONY: logcopter-check
+logcopter-check:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.cliopatra -strip-prefix github.com/go-go-golems/cliopatra -check ./cmd/... ./pkg/...
