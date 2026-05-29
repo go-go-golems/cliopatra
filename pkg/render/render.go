@@ -362,7 +362,7 @@ func (r *Renderer) Render(in io.Reader, out io.Writer) error {
 }
 
 func (r *Renderer) checkMasks(file string) (bool, error) {
-	if r.masks == nil || len(r.masks) == 0 {
+	if len(r.masks) == 0 {
 		return true, nil
 	}
 

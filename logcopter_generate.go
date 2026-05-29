@@ -1,0 +1,3 @@
+package cliopatra
+
+//go:generate go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.cliopatra -strip-prefix github.com/go-go-golems/cliopatra ./cmd/... ./pkg/...

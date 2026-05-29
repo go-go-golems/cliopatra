@@ -291,7 +291,7 @@ func NewRenderCommand() *cobra.Command {
 				watcher.WithPaths(s.Files...),
 			}
 
-			if settings.Glob != nil && len(settings.Glob) > 0 {
+			if len(settings.Glob) > 0 {
 				watcherOptions = append(watcherOptions, watcher.WithMask(settings.Glob...))
 			}
 
