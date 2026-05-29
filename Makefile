@@ -57,6 +57,7 @@ logcopter-check:
 
 GLAZED_LINT_BIN ?= /tmp/glazed-lint
 GLAZED_LINT_PKG ?= github.com/go-go-golems/glazed/cmd/tools/glazed-lint
+# v1.3.6 is the first rollout-safe Glazed tag that contains cmd/tools/glazed-lint.
 GLAZED_VERSION ?= v1.3.6
 
 .PHONY: glazed-lint-build glazed-lint
