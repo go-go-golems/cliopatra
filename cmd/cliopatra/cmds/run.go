@@ -1,3 +1,4 @@
+//glazedclilint:file-ignore legacy repository runner uses raw Cobra flags; migrate to Glazed fields in a follow-up
 package cmds
 
 import (
